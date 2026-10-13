@@ -1,0 +1,17 @@
+# Local credentials (share .env.example only)
+.env
+.env.*
+!.env.example
+
+# Virtual environments and Python caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Editor, OS and temporary Excel files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+~$*.xlsx

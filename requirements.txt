@@ -1,0 +1,8 @@
+# DART API 요청 및 환경변수 로드
+requests
+python-dotenv
+
+# 재무 데이터 분석 및 Excel 입출력
+numpy
+pandas
+openpyxl
