@@ -108,6 +108,18 @@ def validate_data(raw, clean, final, start_year, end_year):
                 & group["재무제표구분"].isin(sections)
                 & group["당기금액"].notna()
             ]
+            if metric == "당기순이익":
+                # 두 표에 같은 순이익이 반복되면 손익계산서를 우선 사용합니다.
+                # 같은 표 안의 중복과 표 사이 금액 불일치는 허용하지 않습니다.
+                if matches.groupby("재무제표구분").size().gt(1).any():
+                    raise ValueError(f"{label} {metric}: 같은 재무제표에 유효 계정이 여러 개입니다.")
+                if matches["당기금액"].nunique() > 1:
+                    raise ValueError(
+                        f"{label} {metric}: 손익계산서와 포괄손익계산서의 당기금액이 다릅니다."
+                    )
+                preferred = matches.loc[matches["재무제표구분"] == "손익계산서"]
+                if not preferred.empty:
+                    matches = preferred
             if len(matches) != 1:
                 raise ValueError(
                     f"{label} {metric}: 유효 계정이 {len(matches)}개입니다. "
@@ -141,7 +153,7 @@ def process_financial_data(company_name, start_year, end_year, file_dir, output_
         ("2단계", "열 이름 통일, 문자열 앞뒤 공백 제거, 당기/전기 금액 숫자 변환. 결측치는 0으로 채우지 않음."),
         ("3단계", "자본변동표는 지분 구분 정보가 없어 분석용에서 제외. 전체 자료는 1/2단계에 보존. 다른 재무제표 행은 유지."),
         ("계정 선택", "재무상태표의 전체 자본 및 손익계산서의 전체 순이익을 해당 표 안에서 앞에 배치. 지배기업 귀속 후보보다 먼저 선택하도록 함."),
-        ("검증", "각 연도 8개 주요 계정이 하나씩 존재하는지, 자산=부채+자본인지 확인."),
+        ("검증", "각 연도 8개 주요 계정의 유일성과 자산=부채+자본 확인. 당기순이익은 손익계산서 우선, 없으면 포괄손익계산서 사용. 두 표의 당기금액 불일치 및 같은 표 안 중복은 오류 처리."),
         ("금액 단위", "원본 금액 단위 유지. 분석 코드는 원 단위를 가정하므로 원본 공시 단위 확인 필요."),
         ("공시 범위", "원본에는 연결/별도 및 통화 정보가 없으므로 이 파일만으로 독립 검증할 수 없음."),
         ("전기금액", "원본 전기금액 보존. 다음 연도 비교 수치로 과거 당기금액을 덮어쓰지 않음."),

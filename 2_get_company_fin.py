@@ -28,6 +28,7 @@ def get_corp_info(company_name: str):
     """
     OpenDART 전체 회사 목록(CORPCODE.xml)에서 입력된 회사명과 정확히 일치하는
     corp_code(고유번호)와 stock_code(종목코드)를 검색하여 반환합니다.
+    STOCK_CODE 설정으로 동명 법인을 구분하며, 후보가 여러 개면 선택하지 않습니다.
     """
     print(f"1. OpenDART 전체 회사 목록 다운로드 중...")
     url = f"https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key={API_KEY}"
@@ -44,28 +45,34 @@ def get_corp_info(company_name: str):
         
         root = ET.fromstring(xml_data)
         
-        for list_node in root.findall('list'):
-            current_name = list_node.findtext('corp_name')
-            
-            # 입력한 회사명과 정확히 일치하는 기업 검색
-            if current_name == company_name:
-                corp_code = list_node.findtext('corp_code').strip()
-                stock_code = list_node.findtext('stock_code').strip()
-                
-                if not stock_code:
-                    stock_code = "비상장사"
+        stock_filter = os.getenv("STOCK_CODE", "").strip()
+        candidates = [
+            ((node.findtext("corp_code") or "").strip(),
+             (node.findtext("stock_code") or "").strip())
+            for node in root.findall("list")
+            if (node.findtext("corp_name") or "").strip() == company_name
+        ]
+        if stock_filter:
+            candidates = [item for item in candidates if item[1] == stock_filter]
+        if not candidates:
+            print(f"❌ '{company_name}' 회사를 DART 목록에서 찾지 못했습니다. COMPANY_NAME과 STOCK_CODE를 확인하세요.")
+            return None, None
+        if len(candidates) != 1:
+            print(f"❌ '{company_name}' 이름의 회사가 {len(candidates)}개입니다.")
+            for corp_code, stock_code in candidates:
+                print(f"• corp_code: {corp_code}, stock_code: {stock_code or '비상장사'}")
+            print(".env에 원하는 회사의 STOCK_CODE를 설정하세요. 예: STOCK_CODE=028260")
+            return None, None
 
-                print("\n" + "=" * 50)
-                print(f"  [{company_name}] 기업 정보 검색 성공")
-                print("=" * 50)
-                print(f"• 회사 고유번호 (corp_code) : {corp_code}")
-                print(f"• 주식 종목코드 (stock_code): {stock_code}")
-                print("=" * 50 + "\n")
-                
-                return corp_code, stock_code
-
-        print(f"❌ '{company_name}' 회사를 DART 목록에서 찾지 못했습니다.")
-        return None, None
+        corp_code, stock_code = candidates[0]
+        stock_code = stock_code or "비상장사"
+        print("\n" + "=" * 50)
+        print(f"  [{company_name}] 기업 정보 검색 성공")
+        print("=" * 50)
+        print(f"• 회사 고유번호 (corp_code) : {corp_code}")
+        print(f"• 주식 종목코드 (stock_code): {stock_code}")
+        print("=" * 50 + "\n")
+        return corp_code, stock_code
 
     except Exception as e:
         print(f"❌ 오류 발생: {e}")
